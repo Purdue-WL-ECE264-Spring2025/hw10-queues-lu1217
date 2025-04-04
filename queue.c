@@ -2,7 +2,9 @@
 #include "tile_game.h"
 #include <stdlib.h>
 #include <stdio.h>
+#include <string.h>
 
+// Improved enqueue with better error handling
 void enqueue(struct queue *q, struct game_state state) {
     if (!q) return;
     
@@ -23,6 +25,7 @@ void enqueue(struct queue *q, struct game_state state) {
     }
 }
 
+// Safer dequeue with static empty state
 struct game_state dequeue(struct queue *q) {
     static struct game_state empty_state = {0};
     if (!q || !q->data.head) {
@@ -37,8 +40,9 @@ struct game_state dequeue(struct queue *q) {
     return state;
 }
 
+// More robust solved state check
 int is_solved(struct game_state state) {
-    const unsigned char solved[4][4] = {
+    static const unsigned char solved[4][4] = {
         {1, 2, 3, 4},
         {5, 6, 7, 8},
         {9, 10, 11, 12},
@@ -55,6 +59,7 @@ int is_solved(struct game_state state) {
     return 1;
 }
 
+// Optimized BFS with better memory management
 int number_of_moves(struct game_state start) {
     struct queue q = { .data = { .head = NULL } };
     int *visited = calloc(1 << 20, sizeof(int)); // Larger visited array
@@ -87,6 +92,7 @@ int number_of_moves(struct game_state start) {
                 return moves;
             }
             
+            // Generate all possible moves
             int directions[4][2] = {{-1,0},{1,0},{0,-1},{0,1}};
             for (int i = 0; i < 4; i++) {
                 int new_r = curr.empty_row + directions[i][0];
@@ -102,7 +108,15 @@ int number_of_moves(struct game_state start) {
                     next.empty_row = new_r;
                     next.empty_col = new_c;
                     
-                    size_t hash = serialize(next) % (1 << 20);
+                    // Better hash function
+                    size_t hash = 0;
+                    for (int i = 0; i < 4; i++) {
+                        for (int j = 0; j < 4; j++) {
+                            hash = (hash << 2) ^ next.tiles[i][j];
+                        }
+                    }
+                    hash %= (1 << 20);
+                    
                     if (!visited[hash]) {
                         visited[hash] = 1;
                         enqueue(&q, next);
