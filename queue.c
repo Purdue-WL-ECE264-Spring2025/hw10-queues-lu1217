@@ -38,13 +38,17 @@ struct game_state dequeue(struct queue *q) {
 }
 
 int is_solved(struct game_state state) {
-    unsigned char expected = 1;
+    const unsigned char solved[4][4] = {
+        {1, 2, 3, 4},
+        {5, 6, 7, 8},
+        {9, 10, 11, 12},
+        {13, 14, 15, 0}
+    };
+    
     for (int i = 0; i < 4; i++) {
         for (int j = 0; j < 4; j++) {
-            if (i == 3 && j == 3) {
-                if (state.tiles[i][j] != 0) return 0;
-            } else {
-                if (state.tiles[i][j] != expected++) return 0;
+            if (state.tiles[i][j] != solved[i][j]) {
+                return 0;
             }
         }
     }
@@ -53,15 +57,18 @@ int is_solved(struct game_state state) {
 
 int number_of_moves(struct game_state start) {
     struct queue q = { .data = { .head = NULL } };
-    int visited[1 << 16] = {0};
+    int *visited = calloc(1 << 20, sizeof(int)); // Larger visited array
+    if (!visited) return -1;
+    
     int moves = 0;
     
     if (is_solved(start)) {
+        free(visited);
         return 0;
     }
 
     enqueue(&q, start);
-    visited[serialize(start)] = 1;
+    visited[serialize(start) % (1 << 20)] = 1;
     
     while (q.data.head) {
         int level_size = 0;
@@ -75,6 +82,7 @@ int number_of_moves(struct game_state start) {
             struct game_state curr = dequeue(&q);
             
             if (is_solved(curr)) {
+                free(visited);
                 while (q.data.head) dequeue(&q);
                 return moves;
             }
@@ -86,12 +94,15 @@ int number_of_moves(struct game_state start) {
                 
                 if (new_r >= 0 && new_r < 4 && new_c >= 0 && new_c < 4) {
                     struct game_state next = curr;
+                    // Swap tiles
+                    unsigned char temp = next.tiles[curr.empty_row][curr.empty_col];
                     next.tiles[curr.empty_row][curr.empty_col] = next.tiles[new_r][new_c];
-                    next.tiles[new_r][new_c] = 0;
+                    next.tiles[new_r][new_c] = temp;
+                    
                     next.empty_row = new_r;
                     next.empty_col = new_c;
                     
-                    size_t hash = serialize(next);
+                    size_t hash = serialize(next) % (1 << 20);
                     if (!visited[hash]) {
                         visited[hash] = 1;
                         enqueue(&q, next);
@@ -102,5 +113,6 @@ int number_of_moves(struct game_state start) {
         moves++;
     }
     
+    free(visited);
     return -1;
 }
