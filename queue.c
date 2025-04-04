@@ -53,13 +53,9 @@ int is_solved(struct game_state state) {
 
 int number_of_moves(struct game_state start) {
     struct queue q = { .data = { .head = NULL } };
-    int visited[1 << 16] = {0};
+    int visited[1 << 16] = {0};  // Track visited states
     int moves = 0;
     
-    if (is_solved(start)) {
-        return 0;
-    }
-
     enqueue(&q, start);
     visited[serialize(start)] = 1;
     
@@ -72,22 +68,34 @@ int number_of_moves(struct game_state start) {
         }
         
         while (level_size--) {
-            struct game_state curr = dequeue(&q);
+            struct game_state curr_state = dequeue(&q);
             
-            if (is_solved(curr)) {
-                while (q.data.head) dequeue(&q);
+            //Check if puzzle is solved
+            int solved = 1;
+            for (int i = 0, val = 1; i < 4 && solved; i++) {
+                for (int j = 0; j < 4 && solved; j++) {
+                    if (i == 3 && j == 3) continue;
+                    if (curr_state.tiles[i][j] != val++) solved = 0;
+                }
+            }
+            if (solved) {
+                while (q.data.head) dequeue(&q);  // Clean up queue
                 return moves;
             }
             
+            //Generate possible moves
             int directions[4][2] = {{-1,0},{1,0},{0,-1},{0,1}};
             for (int i = 0; i < 4; i++) {
-                int new_r = curr.empty_row + directions[i][0];
-                int new_c = curr.empty_col + directions[i][1];
+                int new_r = curr_state.empty_row + directions[i][0];
+                int new_c = curr_state.empty_col + directions[i][1];
                 
                 if (new_r >= 0 && new_r < 4 && new_c >= 0 && new_c < 4) {
-                    struct game_state next = curr;
-                    next.tiles[curr.empty_row][curr.empty_col] = next.tiles[new_r][new_c];
-                    next.tiles[new_r][new_c] = 0;
+                    struct game_state next = curr_state;
+                    // Swap tiles
+                    unsigned char temp = next.tiles[curr_state.empty_row][curr_state.empty_col];
+                    next.tiles[curr_state.empty_row][curr_state.empty_col] = next.tiles[new_r][new_c];
+                    next.tiles[new_r][new_c] = temp;
+                    
                     next.empty_row = new_r;
                     next.empty_col = new_c;
                     
@@ -99,8 +107,8 @@ int number_of_moves(struct game_state start) {
                 }
             }
         }
-        moves++;
+        moves++;  //Move counter
     }
     
-    return -1;
+    return -1; //No solution case
 }
