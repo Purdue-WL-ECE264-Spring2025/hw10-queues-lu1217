@@ -1,3 +1,4 @@
+#include "queue.h"
 #include "tile_game.h"
 #include <stdlib.h>
 
