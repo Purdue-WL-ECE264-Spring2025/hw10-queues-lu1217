@@ -2,24 +2,18 @@
 #include "tile_game.h"
 #include <stdlib.h>
 
-#define VISIT_SIZE (1 << 22)  // Increased for complex cases
-#define MAX_MOVES 60          // Matches test scoring
+#define VISIT_SIZE (1 << 18)  // Balanced size for memory and performance
+#define MAX_MOVES 60
 
-// Enhanced hash focusing on tile relationships
-size_t enhanced_hash(struct game_state state) {
+// More conservative hash function
+size_t safe_hash(struct game_state state) {
     size_t hash = 0;
-    // Weight tiles by their distance from correct position
     for (int i = 0; i < 4; i++) {
         for (int j = 0; j < 4; j++) {
-            int val = state.tiles[i][j];
-            if (val != 0) {
-                int target_row = (val-1)/4;
-                int target_col = (val-1)%4;
-                hash ^= (abs(i-target_row) + abs(j-target_col)) << (4*(i*4+j));
-            }
+            hash = (hash << 3) ^ state.tiles[i][j];
         }
     }
-    return hash ^ (state.empty_row << 8) ^ state.empty_col;
+    return hash;
 }
 
 void enqueue(struct queue *q, struct game_state state) {
@@ -83,7 +77,7 @@ int number_of_moves(struct game_state start) {
     }
 
     enqueue(&q, start);
-    visited[enhanced_hash(start) % VISIT_SIZE] = 1;
+    visited[safe_hash(start) % VISIT_SIZE] = 1;
     
     while (q.data.head && moves <= MAX_MOVES) {
         int level_size = 0;
@@ -97,13 +91,18 @@ int number_of_moves(struct game_state start) {
             struct game_state curr = dequeue(&q);
             
             if (is_solved(curr)) {
+                // Cleanup remaining nodes
+                while (q.data.head) {
+                    struct list_node *next = q.data.head->next;
+                    free(q.data.head);
+                    q.data.head = next;
+                }
                 free(visited);
-                while (q.data.head) dequeue(&q);
                 return moves;
             }
             
-            // Priority moves: right, down, left, up
-            int directions[4][2] = {{0,1},{1,0},{0,-1},{-1,0}};
+            // Standard move order (up, down, left, right)
+            int directions[4][2] = {{-1,0},{1,0},{0,-1},{0,1}};
             for (int i = 0; i < 4; i++) {
                 int new_r = curr.empty_row + directions[i][0];
                 int new_c = curr.empty_col + directions[i][1];
@@ -116,7 +115,7 @@ int number_of_moves(struct game_state start) {
                     next.empty_row = new_r;
                     next.empty_col = new_c;
                     
-                    size_t hash = enhanced_hash(next) % VISIT_SIZE;
+                    size_t hash = safe_hash(next) % VISIT_SIZE;
                     if (!visited[hash]) {
                         visited[hash] = 1;
                         enqueue(&q, next);
@@ -127,6 +126,12 @@ int number_of_moves(struct game_state start) {
         moves++;
     }
     
+    // Full cleanup if unsolved
+    while (q.data.head) {
+        struct list_node *next = q.data.head->next;
+        free(q.data.head);
+        q.data.head = next;
+    }
     free(visited);
     return -1;
 }
