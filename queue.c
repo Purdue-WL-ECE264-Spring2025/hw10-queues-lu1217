@@ -1,23 +1,14 @@
 #include "queue.h"
 #include "tile_game.h"
 #include <stdlib.h>
-#include <string.h> // For memcmp
 
-// Helper structure to track moves
-typedef struct {
-    struct game_state state;
-    int moves;
-} queue_item;
-
-void enqueue(struct queue *q, struct game_state state, int moves) {
+void enqueue(struct queue *q, struct game_state state) {
     if (!q) return;
     
     struct list_node *new_node = malloc(sizeof(struct list_node));
     if (!new_node) return;
     
-    // Store both state and moves in the node
     new_node->value = serialize(state);
-    new_node->moves = moves;
     new_node->next = NULL;
 
     if (!q->data.head) {
@@ -31,14 +22,13 @@ void enqueue(struct queue *q, struct game_state state, int moves) {
     }
 }
 
-struct game_state dequeue(struct queue *q, int *moves) {
+struct game_state dequeue(struct queue *q) {
     if (!q || !q->data.head) {
         return (struct game_state){0};
     }
 
     struct list_node *front = q->data.head;
     struct game_state state = deserialize(front->value);
-    *moves = front->moves;
     q->data.head = front->next;
     free(front);
     
@@ -47,29 +37,30 @@ struct game_state dequeue(struct queue *q, int *moves) {
 
 int number_of_moves(struct game_state start) {
     struct queue q = { .data = { .head = NULL } };
-    int visited[1 << 16] = {0}; // Visited tracking
+    struct queue move_q = { .data = { .head = NULL } }; // Parallel queue for moves
+    int visited[1 << 16] = {0};
     
-    const uint8_t solved[4][4] = {
-        {1, 2, 3, 4},
-        {5, 6, 7, 8},
-        {9, 10, 11, 12},
-        {13, 14, 15, 0}
-    };
-    
-    enqueue(&q, start, 0);
-    visited[serialize(start)] = 1;
+    // Initialize queues
+    enqueue(&q, start);
+    enqueue(&move_q, (struct game_state){0}); // Use dummy state to store move count
     
     while (q.data.head) {
-        int current_moves;
-        struct game_state current = dequeue(&q, &current_moves);
+        struct game_state current = dequeue(&q);
+        struct game_state moves = dequeue(&move_q);
+        int current_moves = moves.tiles[0][0]; // Store moves in dummy state
         
-        // Check if solved
-        if (memcmp(current.tiles, solved, sizeof(solved)) == 0) {
-            // Clean up queue
-            while (q.data.head) {
-                int dummy;
-                dequeue(&q, &dummy);
-            }
+        // Check solved state (hardcoded comparison)
+        if (current.tiles[0][0] == 1 && current.tiles[0][1] == 2 &&
+            current.tiles[0][2] == 3 && current.tiles[0][3] == 4 &&
+            current.tiles[1][0] == 5 && current.tiles[1][1] == 6 &&
+            current.tiles[1][2] == 7 && current.tiles[1][3] == 8 &&
+            current.tiles[2][0] == 9 && current.tiles[2][1] == 10 &&
+            current.tiles[2][2] == 11 && current.tiles[2][3] == 12 &&
+            current.tiles[3][0] == 13 && current.tiles[3][1] == 14 &&
+            current.tiles[3][2] == 15 && current.tiles[3][3] == 0) {
+            // Cleanup
+            while (q.data.head) dequeue(&q);
+            while (move_q.data.head) dequeue(&move_q);
             return current_moves;
         }
         
@@ -82,7 +73,7 @@ int number_of_moves(struct game_state start) {
             if (new_r >= 0 && new_r < 4 && new_c >= 0 && new_c < 4) {
                 struct game_state next = current;
                 // Swap tiles
-                uint8_t temp = next.tiles[current.empty_row][current.empty_col];
+                unsigned char temp = next.tiles[current.empty_row][current.empty_col];
                 next.tiles[current.empty_row][current.empty_col] = next.tiles[new_r][new_c];
                 next.tiles[new_r][new_c] = temp;
                 
@@ -92,7 +83,11 @@ int number_of_moves(struct game_state start) {
                 size_t hash = serialize(next);
                 if (!visited[hash]) {
                     visited[hash] = 1;
-                    enqueue(&q, next, current_moves + 1);
+                    enqueue(&q, next);
+                    // Store move count in parallel queue
+                    struct game_state next_moves = {0};
+                    next_moves.tiles[0][0] = current_moves + 1;
+                    enqueue(&move_q, next_moves);
                 }
             }
         }
