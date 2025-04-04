@@ -1,37 +1,44 @@
 #include "queue.h"
 #include "tile_game.h"
 #include <stdlib.h>
+#include <string.h> // For memcmp
 
-void enqueue(struct queue *q, struct game_state state) {
-    // Serialize the state to an integer
-    size_t serialized = serialize(state);
+// Helper structure to track moves
+typedef struct {
+    struct game_state state;
+    int moves;
+} queue_item;
+
+void enqueue(struct queue *q, struct game_state state, int moves) {
+    if (!q) return;
     
-    // Create new node
     struct list_node *new_node = malloc(sizeof(struct list_node));
-    new_node->value = serialized;
-    new_node->next = NULL;
+    if (!new_node) return;
     
-    // Add to queue (using only head pointer)
-    if (q->data.head == NULL) {
+    // Store both state and moves in the node
+    new_node->value = serialize(state);
+    new_node->moves = moves;
+    new_node->next = NULL;
+
+    if (!q->data.head) {
         q->data.head = new_node;
     } else {
         struct list_node *current = q->data.head;
-        while (current->next != NULL) {
+        while (current->next) {
             current = current->next;
         }
         current->next = new_node;
     }
 }
 
-struct game_state dequeue(struct queue *q) {
-    if (q->data.head == NULL) {
+struct game_state dequeue(struct queue *q, int *moves) {
+    if (!q || !q->data.head) {
         return (struct game_state){0};
     }
-    
+
     struct list_node *front = q->data.head;
-    size_t serialized = front->value;
-    struct game_state state = deserialize(serialized);
-    
+    struct game_state state = deserialize(front->value);
+    *moves = front->moves;
     q->data.head = front->next;
     free(front);
     
@@ -40,72 +47,56 @@ struct game_state dequeue(struct queue *q) {
 
 int number_of_moves(struct game_state start) {
     struct queue q = { .data = { .head = NULL } };
-    int visited[1 << 16] = {0};
+    int visited[1 << 16] = {0}; // Visited tracking
     
-    // Initialize starting state
-    struct game_state initial = start;
-    // Note: Assuming move count is tracked elsewhere since struct doesn't have moves field
+    const uint8_t solved[4][4] = {
+        {1, 2, 3, 4},
+        {5, 6, 7, 8},
+        {9, 10, 11, 12},
+        {13, 14, 15, 0}
+    };
     
-    enqueue(&q, initial);
-    visited[serialize(initial)] = 1;
+    enqueue(&q, start, 0);
+    visited[serialize(start)] = 1;
     
-    while (q.data.head != NULL) {
-        struct game_state current = dequeue(&q);
+    while (q.data.head) {
+        int current_moves;
+        struct game_state current = dequeue(&q, &current_moves);
         
-        // Check if solved (using serialized value comparison)
-        if (serialize(current) == serialize((struct game_state){
-            // Solved board configuration
-            // Note: This assumes the serialize function can handle this
-            .tiles = {
-                {1, 2, 3, 4},
-                {5, 6, 7, 8},
-                {9, 10, 11, 12},
-                {13, 14, 15, 0}
-            },
-            .empty_row = 3,
-            .empty_col = 3
-        })) {
+        // Check if solved
+        if (memcmp(current.tiles, solved, sizeof(solved)) == 0) {
             // Clean up queue
-            while (q.data.head != NULL) {
-                struct list_node *next = q.data.head->next;
-                free(q.data.head);
-                q.data.head = next;
+            while (q.data.head) {
+                int dummy;
+                dequeue(&q, &dummy);
             }
-            // Return move count - need to track this separately
-            // Since the struct doesn't have moves field, we'll need to:
-            // Either: 1) Return a fixed value if we can't track moves
-            // Or: 2) Implement move counting differently
-            return 0; // Placeholder - needs proper implementation
+            return current_moves;
         }
         
-        // Generate possible moves
-        int directions[4][2] = {{-1, 0}, {1, 0}, {0, -1}, {0, 1}};
+        // Generate moves
+        int directions[4][2] = {{-1,0},{1,0},{0,-1},{0,1}};
         for (int i = 0; i < 4; i++) {
-            int new_row = current.empty_row + directions[i][0];
-            int new_col = current.empty_col + directions[i][1];
+            int new_r = current.empty_row + directions[i][0];
+            int new_c = current.empty_col + directions[i][1];
             
-            if (new_row >= 0 && new_row < 4 && new_col >= 0 && new_col < 4) {
-                // Create new state by swapping tiles
+            if (new_r >= 0 && new_r < 4 && new_c >= 0 && new_c < 4) {
                 struct game_state next = current;
-                
                 // Swap tiles
                 uint8_t temp = next.tiles[current.empty_row][current.empty_col];
-                next.tiles[current.empty_row][current.empty_col] = next.tiles[new_row][new_col];
-                next.tiles[new_row][new_col] = temp;
+                next.tiles[current.empty_row][current.empty_col] = next.tiles[new_r][new_c];
+                next.tiles[new_r][new_c] = temp;
                 
-                next.empty_row = new_row;
-                next.empty_col = new_col;
+                next.empty_row = new_r;
+                next.empty_col = new_c;
                 
-                // Check if we've seen this state before
-                size_t serialized = serialize(next);
-                if (!visited[serialized]) {
-                    visited[serialized] = 1;
-                    enqueue(&q, next);
+                size_t hash = serialize(next);
+                if (!visited[hash]) {
+                    visited[hash] = 1;
+                    enqueue(&q, next, current_moves + 1);
                 }
             }
         }
     }
     
-    return -1; // No solution found
+    return -1; // No solution
 }
-
