@@ -38,7 +38,7 @@ struct game_state dequeue(struct queue *q) {
 int number_of_moves(struct game_state start) {
     struct queue q = { .data = { .head = NULL } };
     int visited[1 << 16] = {0};
-    int current_moves = 0;
+    int moves = 0;
     
     enqueue(&q, start);
     visited[serialize(start)] = 1;
@@ -54,18 +54,19 @@ int number_of_moves(struct game_state start) {
         while (level_size--) {
             struct game_state current = dequeue(&q);
             
-            // Check if solved
-            if (current.tiles[0][0] == 1 && current.tiles[0][1] == 2 &&
-                current.tiles[0][2] == 3 && current.tiles[0][3] == 4 &&
-                current.tiles[1][0] == 5 && current.tiles[1][1] == 6 &&
-                current.tiles[1][2] == 7 && current.tiles[1][3] == 8 &&
-                current.tiles[2][0] == 9 && current.tiles[2][1] == 10 &&
-                current.tiles[2][2] == 11 && current.tiles[2][3] == 12 &&
-                current.tiles[3][0] == 13 && current.tiles[3][1] == 14 &&
-                current.tiles[3][2] == 15 && current.tiles[3][3] == 0) {
-                // Clean up queue
-                while (q.data.head) dequeue(&q);
-                return current_moves;
+            // Check if solved (empty tile at bottom-right)
+            if (current.tiles[3][3] == 0) {
+                int solved = 1;
+                for (int i = 0, val = 1; i < 4 && solved; i++) {
+                    for (int j = 0; j < 4 && solved; j++) {
+                        if (i == 3 && j == 3) continue;
+                        if (current.tiles[i][j] != val++) solved = 0;
+                    }
+                }
+                if (solved) {
+                    while (q.data.head) dequeue(&q);
+                    return moves;
+                }
             }
             
             // Generate moves
@@ -92,7 +93,7 @@ int number_of_moves(struct game_state start) {
                 }
             }
         }
-        current_moves++;
+        moves++;
     }
     
     return -1; // No solution
