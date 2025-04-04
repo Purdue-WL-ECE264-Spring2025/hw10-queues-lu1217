@@ -17,15 +17,17 @@ struct game_state dequeue(struct queue *q) {
 
 int number_of_moves(struct game_state start) {
     struct queue q = { .data = { .head = NULL } };
-    // Note: This visited array only works for very small board spaces.
-    // For real-world use, you'd want a better hash or dynamic set.
-    int visited[1 << 20] = {0}; // Slightly larger, still limited
+    struct queue depth_q = { .data = { .head = NULL } }; // parallel queue for depth
+
+    int visited[1 << 20] = {0}; // adjust size if needed
 
     enqueue(&q, start);
+    insert_at_tail(&depth_q.data, 0); // start at depth 0
     visited[serialize(start)] = 1;
 
     while (q.data.head) {
         struct game_state curr = dequeue(&q);
+        int depth = (int)remove_from_head(&depth_q.data);
 
         // Check if solved
         int solved = 1;
@@ -41,10 +43,10 @@ int number_of_moves(struct game_state start) {
 
         if (solved) {
             free_list(q.data);
-            return curr.number_of_moves;
+            free_list(depth_q.data);
+            return depth;
         }
 
-        // Move directions: up, down, left, right
         int directions[4][2] = {{-1,0},{1,0},{0,-1},{0,1}};
         for (int i = 0; i < 4; i++) {
             int new_r = curr.empty_row + directions[i][0];
@@ -53,23 +55,25 @@ int number_of_moves(struct game_state start) {
             if (new_r >= 0 && new_r < 4 && new_c >= 0 && new_c < 4) {
                 struct game_state next = curr;
 
-                // Swap the tile
+                // Swap tiles
+                unsigned char temp = next.tiles[curr.empty_row][curr.empty_col];
                 next.tiles[curr.empty_row][curr.empty_col] = next.tiles[new_r][new_c];
-                next.tiles[new_r][new_c] = 0;
+                next.tiles[new_r][new_c] = temp;
 
                 next.empty_row = new_r;
                 next.empty_col = new_c;
-                next.number_of_moves = curr.number_of_moves + 1;
 
                 size_t hash = serialize(next);
                 if (!visited[hash]) {
                     visited[hash] = 1;
                     enqueue(&q, next);
+                    insert_at_tail(&depth_q.data, depth + 1);
                 }
             }
         }
     }
 
     free_list(q.data);
+    free_list(depth_q.data);
     return -1; // No solution
 }
