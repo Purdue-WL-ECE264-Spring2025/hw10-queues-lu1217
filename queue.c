@@ -1,4 +1,4 @@
-#include "queue.h"
+/*#include "queue.h"
 #include "tile_game.h"
 #include <stdlib.h>
 
@@ -107,4 +107,92 @@ int number_of_moves(struct game_state start) {
     }
     
     return -1; // No solution found
+}
+*/
+
+#include "queue.h"
+#include "tile_game.h"
+#include <stdlib.h>
+#include <string.h>
+
+void enqueue(struct queue *q, struct game_state state) {
+    if (!q) return;
+    
+    size_t serialized = serialize(state);
+    struct list_node *new_node = malloc(sizeof(struct list_node));
+    if (!new_node) return;
+    
+    new_node->value = serialized;
+    new_node->next = NULL;
+
+    if (!q->data.head) {
+        q->data.head = new_node;
+    } else {
+        struct list_node *current = q->data.head;
+        while (current->next) {
+            current = current->next;
+        }
+        current->next = new_node;
+    }
+}
+
+struct game_state dequeue(struct queue *q) {
+    if (!q || !q->data.head) {
+        return (struct game_state){0};
+    }
+
+    struct list_node *front = q->data.head;
+    struct game_state state = deserialize(front->value);
+    
+    q->data.head = front->next;
+    free(front);
+    
+    return state;
+}
+
+int number_of_moves(struct game_state start) {
+    if (is_solved(start)) return 0;
+    
+    struct queue q = { .data = { .head = NULL } };
+    int *visited = calloc(1 << 16, sizeof(int));
+    if (!visited) return -1;
+    
+    enqueue(&q, start);
+    visited[serialize(start)] = 1;
+    
+    while (q.data.head) {
+        struct game_state current = dequeue(&q);
+        
+        for (int i = 0; i < 4; i++) {
+            int dr[] = {-1, 1, 0, 0};
+            int dc[] = {0, 0, -1, 1};
+            int new_r = current.empty_row + dr[i];
+            int new_c = current.empty_col + dc[i];
+            
+            if (new_r >= 0 && new_r < 4 && new_c >= 0 && new_c < 4) {
+                struct game_state next = current;
+                // Swap tiles
+                next.tiles[next.empty_row][next.empty_col] = next.tiles[new_r][new_c];
+                next.tiles[new_r][new_c] = 0;
+                next.empty_row = new_r;
+                next.empty_col = new_c;
+                
+                size_t serialized = serialize(next);
+                if (!visited[serialized]) {
+                    if (is_solved(next)) {
+                        int moves = current.moves + 1;
+                        free(visited);
+                        while (q.data.head) dequeue(&q);
+                        return moves;
+                    }
+                    visited[serialized] = 1;
+                    next.moves = current.moves + 1;
+                    enqueue(&q, next);
+                }
+            }
+        }
+    }
+    
+    free(visited);
+    return -1;
 }
