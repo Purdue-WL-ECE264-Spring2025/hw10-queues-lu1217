@@ -1,10 +1,18 @@
 #include "queue.h"
 #include "tile_game.h"
 #include <stdlib.h>
-#include <stdio.h>
-#include <string.h>
 
-// Improved enqueue with better error handling
+// Improved hash function for better state distribution
+size_t better_hash(struct game_state state) {
+    size_t hash = 0;
+    for (int i = 0; i < 4; i++) {
+        for (int j = 0; j < 4; j++) {
+            hash = (hash << 3) ^ state.tiles[i][j];
+        }
+    }
+    return hash;
+}
+
 void enqueue(struct queue *q, struct game_state state) {
     if (!q) return;
     
@@ -25,7 +33,6 @@ void enqueue(struct queue *q, struct game_state state) {
     }
 }
 
-// Safer dequeue with static empty state
 struct game_state dequeue(struct queue *q) {
     static struct game_state empty_state = {0};
     if (!q || !q->data.head) {
@@ -40,29 +47,24 @@ struct game_state dequeue(struct queue *q) {
     return state;
 }
 
-// More robust solved state check
 int is_solved(struct game_state state) {
-    static const unsigned char solved[4][4] = {
-        {1, 2, 3, 4},
-        {5, 6, 7, 8},
-        {9, 10, 11, 12},
-        {13, 14, 15, 0}
-    };
-    
+    unsigned char expected = 1;
     for (int i = 0; i < 4; i++) {
         for (int j = 0; j < 4; j++) {
-            if (state.tiles[i][j] != solved[i][j]) {
-                return 0;
+            if (i == 3 && j == 3) {
+                if (state.tiles[i][j] != 0) return 0;
+            } else {
+                if (state.tiles[i][j] != expected++) return 0;
             }
         }
     }
     return 1;
 }
 
-// Optimized BFS with better memory management
 int number_of_moves(struct game_state start) {
     struct queue q = { .data = { .head = NULL } };
-    int *visited = calloc(1 << 20, sizeof(int)); // Larger visited array
+    const size_t VISIT_SIZE = 1 << 20;  // Increased visited size
+    int *visited = calloc(VISIT_SIZE, sizeof(int));
     if (!visited) return -1;
     
     int moves = 0;
@@ -73,7 +75,7 @@ int number_of_moves(struct game_state start) {
     }
 
     enqueue(&q, start);
-    visited[serialize(start) % (1 << 20)] = 1;
+    visited[better_hash(start) % VISIT_SIZE] = 1;
     
     while (q.data.head) {
         int level_size = 0;
@@ -92,7 +94,6 @@ int number_of_moves(struct game_state start) {
                 return moves;
             }
             
-            // Generate all possible moves
             int directions[4][2] = {{-1,0},{1,0},{0,-1},{0,1}};
             for (int i = 0; i < 4; i++) {
                 int new_r = curr.empty_row + directions[i][0];
@@ -100,23 +101,13 @@ int number_of_moves(struct game_state start) {
                 
                 if (new_r >= 0 && new_r < 4 && new_c >= 0 && new_c < 4) {
                     struct game_state next = curr;
-                    // Swap tiles
-                    unsigned char temp = next.tiles[curr.empty_row][curr.empty_col];
+                    // Efficient tile swap
                     next.tiles[curr.empty_row][curr.empty_col] = next.tiles[new_r][new_c];
-                    next.tiles[new_r][new_c] = temp;
-                    
+                    next.tiles[new_r][new_c] = 0;
                     next.empty_row = new_r;
                     next.empty_col = new_c;
                     
-                    // Better hash function
-                    size_t hash = 0;
-                    for (int i = 0; i < 4; i++) {
-                        for (int j = 0; j < 4; j++) {
-                            hash = (hash << 2) ^ next.tiles[i][j];
-                        }
-                    }
-                    hash %= (1 << 20);
-                    
+                    size_t hash = better_hash(next) % VISIT_SIZE;
                     if (!visited[hash]) {
                         visited[hash] = 1;
                         enqueue(&q, next);
