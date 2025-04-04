@@ -14,11 +14,11 @@ void enqueue(struct queue *q, struct game_state state) {
     if (!q->data.head) {
         q->data.head = new_node;
     } else {
-        struct list_node *current = q->data.head;
-        while (current->next) {
-            current = current->next;
+        struct list_node *current_node = q->data.head;
+        while (current_node->next) {
+            current_node = current_node->next;
         }
-        current->next = new_node;
+        current_node->next = new_node;
     }
 }
 
@@ -45,22 +45,22 @@ int number_of_moves(struct game_state start) {
     
     while (q.data.head) {
         int level_size = 0;
-        struct list_node *current = q.data.head;
-        while (current) {
+        struct list_node *current_node = q.data.head;
+        while (current_node) {
             level_size++;
-            current = current->next;
+            current_node = current_node->next;
         }
         
         while (level_size--) {
-            struct game_state current = dequeue(&q);
+            struct game_state curr_state = dequeue(&q);
             
             // Check if solved (empty tile at bottom-right)
-            if (current.tiles[3][3] == 0) {
+            if (curr_state.tiles[3][3] == 0) {
                 int solved = 1;
                 for (int i = 0, val = 1; i < 4 && solved; i++) {
                     for (int j = 0; j < 4 && solved; j++) {
                         if (i == 3 && j == 3) continue;
-                        if (current.tiles[i][j] != val++) solved = 0;
+                        if (curr_state.tiles[i][j] != val++) solved = 0;
                     }
                 }
                 if (solved) {
@@ -72,14 +72,14 @@ int number_of_moves(struct game_state start) {
             // Generate moves
             int directions[4][2] = {{-1,0},{1,0},{0,-1},{0,1}};
             for (int i = 0; i < 4; i++) {
-                int new_r = current.empty_row + directions[i][0];
-                int new_c = current.empty_col + directions[i][1];
+                int new_r = curr_state.empty_row + directions[i][0];
+                int new_c = curr_state.empty_col + directions[i][1];
                 
                 if (new_r >= 0 && new_r < 4 && new_c >= 0 && new_c < 4) {
-                    struct game_state next = current;
+                    struct game_state next = curr_state;
                     // Swap tiles
-                    unsigned char temp = next.tiles[current.empty_row][current.empty_col];
-                    next.tiles[current.empty_row][current.empty_col] = next.tiles[new_r][new_c];
+                    unsigned char temp = next.tiles[curr_state.empty_row][curr_state.empty_col];
+                    next.tiles[curr_state.empty_row][curr_state.empty_col] = next.tiles[new_r][new_c];
                     next.tiles[new_r][new_c] = temp;
                     
                     next.empty_row = new_r;
