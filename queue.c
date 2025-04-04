@@ -37,60 +37,62 @@ struct game_state dequeue(struct queue *q) {
 
 int number_of_moves(struct game_state start) {
     struct queue q = { .data = { .head = NULL } };
-    struct queue move_q = { .data = { .head = NULL } }; // Parallel queue for moves
     int visited[1 << 16] = {0};
+    int current_moves = 0;
     
-    // Initialize queues
     enqueue(&q, start);
-    enqueue(&move_q, (struct game_state){0}); // Use dummy state to store move count
+    visited[serialize(start)] = 1;
     
     while (q.data.head) {
-        struct game_state current = dequeue(&q);
-        struct game_state moves = dequeue(&move_q);
-        int current_moves = moves.tiles[0][0]; // Store moves in dummy state
-        
-        // Check solved state (hardcoded comparison)
-        if (current.tiles[0][0] == 1 && current.tiles[0][1] == 2 &&
-            current.tiles[0][2] == 3 && current.tiles[0][3] == 4 &&
-            current.tiles[1][0] == 5 && current.tiles[1][1] == 6 &&
-            current.tiles[1][2] == 7 && current.tiles[1][3] == 8 &&
-            current.tiles[2][0] == 9 && current.tiles[2][1] == 10 &&
-            current.tiles[2][2] == 11 && current.tiles[2][3] == 12 &&
-            current.tiles[3][0] == 13 && current.tiles[3][1] == 14 &&
-            current.tiles[3][2] == 15 && current.tiles[3][3] == 0) {
-            // Cleanup
-            while (q.data.head) dequeue(&q);
-            while (move_q.data.head) dequeue(&move_q);
-            return current_moves;
+        int level_size = 0;
+        struct list_node *current = q.data.head;
+        while (current) {
+            level_size++;
+            current = current->next;
         }
         
-        // Generate moves
-        int directions[4][2] = {{-1,0},{1,0},{0,-1},{0,1}};
-        for (int i = 0; i < 4; i++) {
-            int new_r = current.empty_row + directions[i][0];
-            int new_c = current.empty_col + directions[i][1];
+        while (level_size--) {
+            struct game_state current = dequeue(&q);
             
-            if (new_r >= 0 && new_r < 4 && new_c >= 0 && new_c < 4) {
-                struct game_state next = current;
-                // Swap tiles
-                unsigned char temp = next.tiles[current.empty_row][current.empty_col];
-                next.tiles[current.empty_row][current.empty_col] = next.tiles[new_r][new_c];
-                next.tiles[new_r][new_c] = temp;
+            // Check if solved
+            if (current.tiles[0][0] == 1 && current.tiles[0][1] == 2 &&
+                current.tiles[0][2] == 3 && current.tiles[0][3] == 4 &&
+                current.tiles[1][0] == 5 && current.tiles[1][1] == 6 &&
+                current.tiles[1][2] == 7 && current.tiles[1][3] == 8 &&
+                current.tiles[2][0] == 9 && current.tiles[2][1] == 10 &&
+                current.tiles[2][2] == 11 && current.tiles[2][3] == 12 &&
+                current.tiles[3][0] == 13 && current.tiles[3][1] == 14 &&
+                current.tiles[3][2] == 15 && current.tiles[3][3] == 0) {
+                // Clean up queue
+                while (q.data.head) dequeue(&q);
+                return current_moves;
+            }
+            
+            // Generate moves
+            int directions[4][2] = {{-1,0},{1,0},{0,-1},{0,1}};
+            for (int i = 0; i < 4; i++) {
+                int new_r = current.empty_row + directions[i][0];
+                int new_c = current.empty_col + directions[i][1];
                 
-                next.empty_row = new_r;
-                next.empty_col = new_c;
-                
-                size_t hash = serialize(next);
-                if (!visited[hash]) {
-                    visited[hash] = 1;
-                    enqueue(&q, next);
-                    // Store move count in parallel queue
-                    struct game_state next_moves = {0};
-                    next_moves.tiles[0][0] = current_moves + 1;
-                    enqueue(&move_q, next_moves);
+                if (new_r >= 0 && new_r < 4 && new_c >= 0 && new_c < 4) {
+                    struct game_state next = current;
+                    // Swap tiles
+                    unsigned char temp = next.tiles[current.empty_row][current.empty_col];
+                    next.tiles[current.empty_row][current.empty_col] = next.tiles[new_r][new_c];
+                    next.tiles[new_r][new_c] = temp;
+                    
+                    next.empty_row = new_r;
+                    next.empty_col = new_c;
+                    
+                    size_t hash = serialize(next);
+                    if (!visited[hash]) {
+                        visited[hash] = 1;
+                        enqueue(&q, next);
+                    }
                 }
             }
         }
+        current_moves++;
     }
     
     return -1; // No solution
