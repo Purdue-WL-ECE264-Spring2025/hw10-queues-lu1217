@@ -2,15 +2,12 @@
 #include "tile_game.h"
 
 void enqueue(struct queue *q, struct game_state state) {
-    // Convert game state to integer representation
+    // Implementation added
     size_t serialized = serialize(state);
-    
-    // Create new node
     struct list_node *new = malloc(sizeof(struct list_node));
     new->value = serialized;
     new->next = NULL;
     
-    // Add to end of queue
     if (q->list.tail) {
         q->list.tail->next = new;
         q->list.tail = new;
@@ -20,26 +17,33 @@ void enqueue(struct queue *q, struct game_state state) {
 }
 
 struct game_state dequeue(struct queue *q) {
-    // Remove from front of queue
+    // Implementation added
+    if (!q->list.head) return (struct game_state){0};
+    
     struct list_node *front = q->list.head;
     size_t serialized = front->value;
+    struct game_state state = deserialize(serialized);
     
     q->list.head = front->next;
     if (!q->list.head) q->list.tail = NULL;
     free(front);
     
-    return deserialize(serialized);
+    return state;
 }
 
 int number_of_moves(struct game_state start) {
+    // Implementation added
     struct queue q = { .list = { .head = NULL, .tail = NULL } };
+    int visited[1 << 16] = {0};
+    
+    start.number_of_moves = 0;
     enqueue(&q, start);
+    visited[serialize(start)] = 1;
     
     while (q.list.head) {
         struct game_state current = dequeue(&q);
         
         if (is_solved(current)) {
-            // Clean up remaining nodes
             while (q.list.head) {
                 struct list_node *next = q.list.head->next;
                 free(q.list.head);
@@ -48,15 +52,13 @@ int number_of_moves(struct game_state start) {
             return current.number_of_moves;
         }
         
-        // Generate possible moves
-        int dirs[4][2] = {{-1,0}, {1,0}, {0,-1}, {0,1}};
+        int dirs[4][2] = {{-1,0},{1,0},{0,-1},{0,1}};
         for (int i = 0; i < 4; i++) {
             int new_r = current.empty_row + dirs[i][0];
             int new_c = current.empty_col + dirs[i][1];
             
             if (new_r >= 0 && new_r < 4 && new_c >= 0 && new_c < 4) {
                 struct game_state next = current;
-                // Swap tiles
                 next.board[current.empty_row][current.empty_col] = 
                     next.board[new_r][new_c];
                 next.board[new_r][new_c] = 0;
@@ -64,10 +66,14 @@ int number_of_moves(struct game_state start) {
                 next.empty_col = new_c;
                 next.number_of_moves++;
                 
-                enqueue(&q, next);
+                size_t serialized = serialize(next);
+                if (!visited[serialized]) {
+                    visited[serialized] = 1;
+                    enqueue(&q, next);
+                }
             }
         }
     }
     
-    return -1; // No solution found
+    return -1;
 }
