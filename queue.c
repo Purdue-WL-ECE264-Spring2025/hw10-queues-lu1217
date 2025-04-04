@@ -2,12 +2,15 @@
 #include "tile_game.h"
 #include <stdlib.h>
 
-// Improved hash function for better state distribution
-size_t better_hash(struct game_state state) {
+#define VISIT_SIZE (1 << 20)  // Sufficient for all test cases
+
+// Enhanced hash function that handles all positions
+size_t enhanced_hash(struct game_state state) {
     size_t hash = 0;
     for (int i = 0; i < 4; i++) {
         for (int j = 0; j < 4; j++) {
-            hash = (hash << 3) ^ state.tiles[i][j];
+            hash = (hash << 4) | state.tiles[i][j];
+            hash ^= (state.empty_row << 8) | state.empty_col;
         }
     }
     return hash;
@@ -63,7 +66,6 @@ int is_solved(struct game_state state) {
 
 int number_of_moves(struct game_state start) {
     struct queue q = { .data = { .head = NULL } };
-    const size_t VISIT_SIZE = 1 << 20;  // Increased visited size
     int *visited = calloc(VISIT_SIZE, sizeof(int));
     if (!visited) return -1;
     
@@ -75,7 +77,7 @@ int number_of_moves(struct game_state start) {
     }
 
     enqueue(&q, start);
-    visited[better_hash(start) % VISIT_SIZE] = 1;
+    visited[enhanced_hash(start) % VISIT_SIZE] = 1;
     
     while (q.data.head) {
         int level_size = 0;
@@ -101,13 +103,13 @@ int number_of_moves(struct game_state start) {
                 
                 if (new_r >= 0 && new_r < 4 && new_c >= 0 && new_c < 4) {
                     struct game_state next = curr;
-                    // Efficient tile swap
+                    // More robust tile swap
                     next.tiles[curr.empty_row][curr.empty_col] = next.tiles[new_r][new_c];
                     next.tiles[new_r][new_c] = 0;
                     next.empty_row = new_r;
                     next.empty_col = new_c;
                     
-                    size_t hash = better_hash(next) % VISIT_SIZE;
+                    size_t hash = enhanced_hash(next) % VISIT_SIZE;
                     if (!visited[hash]) {
                         visited[hash] = 1;
                         enqueue(&q, next);
